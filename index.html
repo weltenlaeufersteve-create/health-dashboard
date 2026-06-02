@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,7 +65,6 @@
   }
   #last-updated { font-size: 12px; color: var(--muted); padding: 0 4px; }
 
-  /* app buttons */
   .app-btn {
     -webkit-app-region: no-drag;
     border: 1px solid var(--border2);
@@ -82,7 +81,6 @@
   #btn-refresh { color: var(--green); border-color: var(--green); }
   #btn-refresh:hover { background: rgba(61,214,140,0.1); }
 
-  /* window controls */
   #win-controls {
     display: flex;
     align-items: stretch;
@@ -188,15 +186,37 @@
     display: flex; flex-direction: column;
     overflow: hidden; min-height: 0;
   }
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
   .chart-card h3 {
     font-size: 11px; font-weight: 600;
     letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--muted); margin-bottom: 12px; flex-shrink: 0;
+    color: var(--muted);
   }
+  .nav-arrows { display: flex; gap: 4px; }
+  .nav-btn {
+    width: 22px; height: 22px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 11px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-family: inherit;
+    transition: background 0.1s;
+  }
+  .nav-btn:hover:not(:disabled) { background: var(--bg); border-color: rgba(255,255,255,0.25); }
+  .nav-btn:disabled { opacity: 0.25; cursor: default; }
+
   .chart-wrap { flex: 1; position: relative; min-height: 0; }
   .chart-wrap canvas { position: absolute; inset: 0; }
 
-  /* runs list */
   #runs-list {
     flex: 1; overflow-y: auto;
     display: flex; flex-direction: column; gap: 5px; min-height: 0;
@@ -248,12 +268,12 @@
   <h1>Health Dashboard</h1>
   <div id="titlebar-right">
     <span id="last-updated"></span>
-    <button id="btn-refresh" class="app-btn hidden">↻ Aktualisieren</button>
-    <button id="btn-logout"  class="app-btn hidden">Abmelden</button>
+    <button id="btn-refresh" class="app-btn hidden">↻ Refresh</button>
+    <button id="btn-logout"  class="app-btn hidden">Sign out</button>
     <div id="win-controls">
-      <button id="btn-win-minimize" class="win-btn" title="Minimieren">─</button>
-      <button id="btn-win-maximize" class="win-btn" title="Maximieren">□</button>
-      <button id="btn-win-close"    class="win-btn" title="Schließen">✕</button>
+      <button id="btn-win-minimize" class="win-btn" title="Minimize">─</button>
+      <button id="btn-win-maximize" class="win-btn" title="Maximize">□</button>
+      <button id="btn-win-close"    class="win-btn" title="Close">✕</button>
     </div>
   </div>
 </div>
@@ -262,50 +282,62 @@
 <div id="view-login">
   <div class="login-logo">❤️</div>
   <h2>Health Dashboard</h2>
-  <p>Verbinde dein Google-Fit-Konto, um Polar-Aktivitäten, Schlafdaten, Herzfrequenz und Schritte zu sehen.</p>
-  <button id="btn-login-big">Mit Google anmelden</button>
+  <p>Connect your Google Fit account to see your steps, sleep, heart rate and runs from Polar.</p>
+  <button id="btn-login-big">Sign in with Google</button>
 </div>
 
 <!-- DASHBOARD -->
 <div id="view-dashboard" class="hidden">
   <div id="metrics-row">
     <div class="metric-card accent-blue">
-      <div class="label">Schritte heute</div>
+      <div class="label">Steps today</div>
       <div class="value" id="val-steps">–</div>
-      <div class="sub"  id="sub-steps">Ziel: 10.000</div>
+      <div class="sub"  id="sub-steps">Goal: 10.000</div>
     </div>
     <div class="metric-card accent-amber">
-      <div class="label">Kalorien heute</div>
+      <div class="label">Calories today</div>
       <div class="value" id="val-cals">–</div>
-      <div class="sub">kcal verbrannt</div>
+      <div class="sub">kcal burned</div>
     </div>
     <div class="metric-card accent-green">
-      <div class="label">Schlaf letzte Nacht</div>
+      <div class="label">Sleep last night</div>
       <div class="value" id="val-sleep">–</div>
-      <div class="sub">Stunden</div>
+      <div class="sub">hours</div>
     </div>
     <div class="metric-card accent-red">
-      <div class="label">Ruhepuls heute</div>
+      <div class="label">Heart rate today</div>
       <div class="value" id="val-hr">–</div>
-      <div class="sub">bpm Ø</div>
+      <div class="sub">bpm avg</div>
     </div>
   </div>
 
   <div id="charts-grid">
     <div class="chart-card">
-      <h3>Schritte – letzte 7 Tage</h3>
+      <div class="chart-header">
+        <h3>Steps – last 7 days</h3>
+      </div>
       <div class="chart-wrap"><canvas id="chart-steps"></canvas></div>
     </div>
     <div class="chart-card">
-      <h3>Schlaf – letzte 7 Nächte (h)</h3>
+      <div class="chart-header">
+        <h3>Sleep – last 7 nights (h)</h3>
+      </div>
       <div class="chart-wrap"><canvas id="chart-sleep"></canvas></div>
     </div>
     <div class="chart-card">
-      <h3>Herzfrequenz heute</h3>
+      <div class="chart-header">
+        <h3 id="hr-title">Heart rate – today</h3>
+        <div class="nav-arrows">
+          <button id="btn-hr-prev" class="nav-btn" title="Previous day">←</button>
+          <button id="btn-hr-next" class="nav-btn" title="Next day" disabled>→</button>
+        </div>
+      </div>
       <div class="chart-wrap"><canvas id="chart-hr"></canvas></div>
     </div>
     <div class="chart-card">
-      <h3>Laufaktivitäten – letzte 30 Tage</h3>
+      <div class="chart-header">
+        <h3>Runs – last 30 days</h3>
+      </div>
       <div id="runs-list"></div>
     </div>
   </div>
@@ -314,7 +346,7 @@
 <!-- LOADING OVERLAY -->
 <div id="loading" class="hidden">
   <div class="spinner"></div>
-  <p>Daten werden geladen…</p>
+  <p>Loading data…</p>
 </div>
 
 <!-- ERROR BANNER -->

@@ -7,9 +7,20 @@ const path   = require('path');
 const os     = require('os');
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
+// Credentials are read from .env (gitignored) at runtime.
+// .env format: line 1 = CLIENT_ID, line 2 = CLIENT_SECRET
+function loadEnv() {
+  try {
+    const lines = fs.readFileSync(path.join(__dirname, '.env'), 'utf8')
+      .split('\n').map(l => l.trim()).filter(Boolean);
+    return { CLIENT_ID: lines[0] || '', CLIENT_SECRET: lines[1] || '' };
+  } catch { return { CLIENT_ID: '', CLIENT_SECRET: '' }; }
+}
+const env = loadEnv();
+
 const CONFIG = {
-  CLIENT_ID:     'DEINE_CLIENT_ID.apps.googleusercontent.com',
-  CLIENT_SECRET: 'DEIN_CLIENT_SECRET',
+  CLIENT_ID:     env.CLIENT_ID,
+  CLIENT_SECRET: env.CLIENT_SECRET,
   REDIRECT_PORT: 9876,
   REDIRECT_URI:  'http://localhost:9876/oauth',
   SCOPES: [
@@ -198,8 +209,8 @@ async function fetchSleep7Days() {
   return Object.entries(byDay).map(([label, hours]) => ({ label, hours: +hours.toFixed(1) }));
 }
 
-async function fetchHeartRate() {
-  const { start, end } = dayRange(0);
+async function fetchHeartRate(daysAgo = 0) {
+  const { start, end } = dayRange(daysAgo);
   const resp = await fitRequest('/fitness/v1/users/me/dataset:aggregate', {
     aggregateBy:    [{ dataTypeName: 'com.google.heart_rate.bpm' }],
     bucketByTime:   { durationMillis: 3_600_000 },
@@ -227,6 +238,7 @@ async function fetchRuns() {
 // ─── UI HELPERS ───────────────────────────────────────────────────────────────
 const $      = id => document.getElementById(id);
 const charts = {};
+let hrDayOffset = 0;
 
 function fmt(n) { return Number(n).toLocaleString('de-DE'); }
 
@@ -249,8 +261,8 @@ function renderSteps(data) {
   const today = data[data.length - 1]?.steps || 0;
   $('val-steps').textContent = fmt(today);
   $('sub-steps').textContent = today >= 10000
-    ? '✓ Ziel erreicht!'
-    : `Noch ${fmt(10000 - today)} bis Ziel`;
+    ? '✓ Goal reached!'
+    : `${fmt(10000 - today)} to go`;
 
   charts.steps = new Chart($('chart-steps'), {
     type: 'bar',
@@ -288,10 +300,33 @@ function renderSleep(data) {
   });
 }
 
+function updateHRTitle() {
+  if (hrDayOffset === 0) {
+    $('hr-title').textContent = 'Heart rate – today';
+  } else {
+    const d = new Date();
+    d.setDate(d.getDate() - hrDayOffset);
+    $('hr-title').textContent = 'Heart rate – ' + d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
+  }
+  $('btn-hr-next').disabled = hrDayOffset === 0;
+  $('btn-hr-prev').disabled = hrDayOffset === 6;
+}
+
+async function loadHR() {
+  try {
+    const data = await fetchHeartRate(hrDayOffset);
+    renderHeartRate(data);
+  } catch (e) {
+    showError('Error loading heart rate: ' + e.message);
+  }
+  updateHRTitle();
+}
+
 function renderHeartRate(data) {
   destroyChart('hr');
   if (!data.length) { $('val-hr').textContent = '–'; return; }
-  $('val-hr').textContent = Math.round(data.reduce((s, d) => s + d.bpm, 0) / data.length);
+  if (hrDayOffset === 0)
+    $('val-hr').textContent = Math.round(data.reduce((s, d) => s + d.bpm, 0) / data.length);
 
   charts.hr = new Chart($('chart-hr'), {
     type: 'line',
@@ -313,7 +348,7 @@ function renderRuns(runs) {
   const list = $('runs-list');
   list.innerHTML = '';
   if (!runs.length) {
-    list.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px">Keine Läufe in den letzten 30 Tagen.</p>';
+    list.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px">No runs in the last 30 days.</p>';
     return;
   }
   runs.slice(0, 12).forEach(r => {
@@ -356,21 +391,20 @@ function showError(msg) {
 async function loadData() {
   setLoading(true);
   try {
-    const [steps, calories, sleep, heartRate, runs] = await Promise.all([
+    const [steps, calories, sleep, runs] = await Promise.all([
       fetchSteps7Days(),
       fetchCaloriesToday(),
       fetchSleep7Days(),
-      fetchHeartRate(),
       fetchRuns(),
     ]);
     renderSteps(steps);
     renderSleep(sleep);
-    renderHeartRate(heartRate);
     renderRuns(runs);
+    await loadHR();
     $('val-cals').textContent = fmt(calories);
-    $('last-updated').textContent = 'Stand: ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    $('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   } catch (e) {
-    showError('Fehler beim Laden: ' + e.message);
+    showError('Error loading data: ' + e.message);
   } finally {
     setLoading(false);
   }
@@ -388,7 +422,7 @@ $('btn-login-big').addEventListener('click', async () => {
     showDashboard();
     loadData();
   } catch (e) {
-    showError('Login fehlgeschlagen: ' + e.message);
+    showError('Login failed: ' + e.message);
   } finally {
     setLoading(false);
   }
@@ -396,6 +430,9 @@ $('btn-login-big').addEventListener('click', async () => {
 
 $('btn-refresh').addEventListener('click', loadData);
 $('btn-logout').addEventListener('click', () => { clearTokens(); showLogin(); });
+
+$('btn-hr-prev').addEventListener('click', () => { if (hrDayOffset < 6) { hrDayOffset++; loadHR(); } });
+$('btn-hr-next').addEventListener('click', () => { if (hrDayOffset > 0) { hrDayOffset--; loadHR(); } });
 
 loadTokens();
 tokens?.access_token ? (showDashboard(), loadData()) : showLogin();
