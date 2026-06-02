@@ -1,0 +1,24 @@
+{
+  "name": "health-dashboard",
+  "version": "1.0.0",
+  "description": "Personal Health Dashboard – Google Fit / Polar",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "de.auni.health-dashboard",
+    "productName": "Health Dashboard",
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg" },
+    "linux": { "target": "AppImage" }
+  }
+}

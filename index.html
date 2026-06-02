@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Health Dashboard</title>
+<style>
+  :root {
+    --bg:        #0d0d1a;
+    --bg2:       #13132a;
+    --bg3:       #1a1a35;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.12);
+    --text:      #e8e8f0;
+    --muted:     #7878a0;
+    --accent:    #5b8cff;
+    --accent2:   #7c5bff;
+    --green:     #3dd68c;
+    --amber:     #f5a623;
+    --red:       #ff5c7a;
+    --radius:    12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* ── TITLEBAR ─────────────────────────────────────────────────────────── */
+  #titlebar {
+    -webkit-app-region: drag;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 0 20px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+  #titlebar h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  #titlebar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+    height: 100%;
+  }
+  #last-updated { font-size: 12px; color: var(--muted); padding: 0 4px; }
+
+  /* app buttons */
+  .app-btn {
+    -webkit-app-region: no-drag;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text);
+    border-radius: var(--radius-sm);
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+  }
+  .app-btn:hover { background: var(--bg3); border-color: rgba(255,255,255,0.2); }
+  #btn-refresh { color: var(--green); border-color: var(--green); }
+  #btn-refresh:hover { background: rgba(61,214,140,0.1); }
+
+  /* window controls */
+  #win-controls {
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    margin-left: 4px;
+  }
+  .win-btn {
+    width: 46px;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, color 0.1s;
+    font-family: inherit;
+    -webkit-app-region: no-drag;
+  }
+  .win-btn:hover { background: var(--bg3); color: var(--text); }
+  #btn-win-close:hover { background: #c42b1c; color: #fff; }
+
+  /* ── VIEWS ────────────────────────────────────────────────────────────── */
+  #view-login, #view-dashboard { flex: 1; overflow: hidden; }
+
+  #view-login {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  }
+  .login-logo {
+    width: 72px; height: 72px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px;
+  }
+  #view-login h2 { font-size: 24px; font-weight: 600; }
+  #view-login p  { color: var(--muted); max-width: 340px; text-align: center; font-size: 13px; line-height: 1.7; }
+  #btn-login-big {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 11px 32px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #btn-login-big:hover { opacity: 0.88; }
+
+  /* ── DASHBOARD ────────────────────────────────────────────────────────── */
+  #view-dashboard {
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  #metrics-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 16px 20px 0;
+  }
+  .metric-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 5px;
+    transition: border-color 0.2s;
+  }
+  .metric-card:hover { border-color: var(--border2); }
+  .metric-card .label {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  .metric-card .value { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .metric-card .sub   { font-size: 12px; color: var(--muted); }
+  .accent-blue  .value { color: var(--accent); }
+  .accent-green .value { color: var(--green); }
+  .accent-amber .value { color: var(--amber); }
+  .accent-red   .value { color: var(--red); }
+
+  /* ── CHARTS ───────────────────────────────────────────────────────────── */
+  #charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+    padding: 12px 20px 20px;
+    overflow: hidden;
+  }
+  .chart-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: flex; flex-direction: column;
+    overflow: hidden; min-height: 0;
+  }
+  .chart-card h3 {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 12px; flex-shrink: 0;
+  }
+  .chart-wrap { flex: 1; position: relative; min-height: 0; }
+  .chart-wrap canvas { position: absolute; inset: 0; }
+
+  /* runs list */
+  #runs-list {
+    flex: 1; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 5px; min-height: 0;
+  }
+  .run-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; border-radius: var(--radius-sm);
+    background: var(--bg3); font-size: 12px;
+  }
+  .run-icon  { color: var(--accent); font-size: 15px; flex-shrink: 0; }
+  .run-name  { font-weight: 600; flex: 1; }
+  .run-date  { color: var(--muted); }
+  .run-dur   { color: var(--green); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ── LOADING / ERROR ──────────────────────────────────────────────────── */
+  #loading {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px; z-index: 100;
+  }
+  #loading p { color: var(--muted); }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #error-msg {
+    display: none;
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(255,92,122,0.12);
+    border: 1px solid var(--red);
+    color: var(--red);
+    padding: 9px 20px; border-radius: var(--radius-sm);
+    font-size: 12px; z-index: 200; white-space: nowrap;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div id="titlebar">
+  <h1>Health Dashboard</h1>
+  <div id="titlebar-right">
+    <span id="last-updated"></span>
+    <button id="btn-refresh" class="app-btn hidden">↻ Aktualisieren</button>
+    <button id="btn-logout"  class="app-btn hidden">Abmelden</button>
+    <div id="win-controls">
+      <button id="btn-win-minimize" class="win-btn" title="Minimieren">─</button>
+      <button id="btn-win-maximize" class="win-btn" title="Maximieren">□</button>
+      <button id="btn-win-close"    class="win-btn" title="Schließen">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="view-login">
+  <div class="login-logo">❤️</div>
+  <h2>Health Dashboard</h2>
+  <p>Verbinde dein Google-Fit-Konto, um Polar-Aktivitäten, Schlafdaten, Herzfrequenz und Schritte zu sehen.</p>
+  <button id="btn-login-big">Mit Google anmelden</button>
+</div>
+
+<!-- DASHBOARD -->
+<div id="view-dashboard" class="hidden">
+  <div id="metrics-row">
+    <div class="metric-card accent-blue">
+      <div class="label">Schritte heute</div>
+      <div class="value" id="val-steps">–</div>
+      <div class="sub"  id="sub-steps">Ziel: 10.000</div>
+    </div>
+    <div class="metric-card accent-amber">
+      <div class="label">Kalorien heute</div>
+      <div class="value" id="val-cals">–</div>
+      <div class="sub">kcal verbrannt</div>
+    </div>
+    <div class="metric-card accent-green">
+      <div class="label">Schlaf letzte Nacht</div>
+      <div class="value" id="val-sleep">–</div>
+      <div class="sub">Stunden</div>
+    </div>
+    <div class="metric-card accent-red">
+      <div class="label">Ruhepuls heute</div>
+      <div class="value" id="val-hr">–</div>
+      <div class="sub">bpm Ø</div>
+    </div>
+  </div>
+
+  <div id="charts-grid">
+    <div class="chart-card">
+      <h3>Schritte – letzte 7 Tage</h3>
+      <div class="chart-wrap"><canvas id="chart-steps"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Schlaf – letzte 7 Nächte (h)</h3>
+      <div class="chart-wrap"><canvas id="chart-sleep"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Herzfrequenz heute</h3>
+      <div class="chart-wrap"><canvas id="chart-hr"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Laufaktivitäten – letzte 30 Tage</h3>
+      <div id="runs-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div id="loading" class="hidden">
+  <div class="spinner"></div>
+  <p>Daten werden geladen…</p>
+</div>
+
+<!-- ERROR BANNER -->
+<div id="error-msg"></div>
+
+<script src="./node_modules/chart.js/dist/chart.umd.js"></script>
+<script src="./renderer.js"></script>
+</body>
+</html>
