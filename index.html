@@ -139,15 +139,14 @@
 
   /* ── DASHBOARD ────────────────────────────────────────────────────────── */
   #view-dashboard {
-    display: grid;
-    grid-template-rows: auto 1fr;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   #metrics-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    padding: 16px 20px 0;
+    display: none;
   }
   .metric-card {
     background: var(--bg2);
@@ -175,8 +174,9 @@
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
     gap: 12px;
-    padding: 12px 20px 20px;
-    overflow: hidden;
+    padding: 12px 20px 0;
+    flex-shrink: 0;
+    height: 520px;
   }
   .chart-card {
     background: var(--bg2);
@@ -230,6 +230,21 @@
   .run-name  { font-weight: 600; flex: 1; }
   .run-date  { color: var(--muted); }
   .run-dur   { color: var(--green); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  #insights-card {
+    margin: 12px 20px 20px 20px;
+    flex-shrink: 0;
+  }
+  #insights-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    padding: 16px 0;
+    max-height: 400px;
+    overflow-y: auto;
+  }
 
   /* ── LOADING / ERROR ──────────────────────────────────────────────────── */
   #loading {
