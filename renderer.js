@@ -209,19 +209,20 @@ async function fetchSleep7Days() {
   return Object.entries(byDay).map(([label, hours]) => ({ label, hours: +hours.toFixed(1) }));
 }
 
-async function fetchHeartRate(daysAgo = 0) {
-  const { start, end } = dayRange(daysAgo);
+async function fetchHeartRate7Days() {
   const resp = await fitRequest('/fitness/v1/users/me/dataset:aggregate', {
     aggregateBy:    [{ dataTypeName: 'com.google.heart_rate.bpm' }],
-    bucketByTime:   { durationMillis: 3_600_000 },
-    startTimeMillis: start,
-    endTimeMillis:   end,
+    bucketByTime:   { durationMillis: 86_400_000 },
+    startTimeMillis: nDaysAgo(6),
+    endTimeMillis:   Date.now(),
   });
-  return (resp.bucket || []).reduce((acc, b) => {
+  return (resp.bucket || []).map(b => {
     const val = b.dataset?.[0]?.point?.[0]?.value?.[0]?.fpVal;
-    if (val) acc.push({ hour: `${new Date(parseInt(b.startTimeMillis)).getHours()}:00`, bpm: Math.round(val) });
-    return acc;
-  }, []);
+    return {
+      label: new Date(parseInt(b.startTimeMillis)).toLocaleDateString('de-DE', { weekday: 'short' }),
+      bpm:   val ? Math.round(val) : null,
+    };
+  });
 }
 
 async function fetchRuns() {
@@ -238,7 +239,6 @@ async function fetchRuns() {
 // ─── UI HELPERS ───────────────────────────────────────────────────────────────
 const $      = id => document.getElementById(id);
 const charts = {};
-let hrDayOffset = 0;
 
 function fmt(n) { return Number(n).toLocaleString('de-DE'); }
 
@@ -300,43 +300,34 @@ function renderSleep(data) {
   });
 }
 
-function updateHRTitle() {
-  if (hrDayOffset === 0) {
-    $('hr-title').textContent = 'Heart rate – today';
-  } else {
-    const d = new Date();
-    d.setDate(d.getDate() - hrDayOffset);
-    $('hr-title').textContent = 'Heart rate – ' + d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
-  }
-  $('btn-hr-next').disabled = hrDayOffset === 0;
-  $('btn-hr-prev').disabled = hrDayOffset === 6;
-}
-
 async function loadHR() {
   try {
-    const data = await fetchHeartRate(hrDayOffset);
+    const data = await fetchHeartRate7Days();
     renderHeartRate(data);
   } catch (e) {
     showError('Error loading heart rate: ' + e.message);
   }
-  updateHRTitle();
 }
 
 function renderHeartRate(data) {
   destroyChart('hr');
-  if (!data.length) { $('val-hr').textContent = '–'; return; }
-  if (hrDayOffset === 0)
-    $('val-hr').textContent = Math.round(data.reduce((s, d) => s + d.bpm, 0) / data.length);
+  const withData = data.filter(d => d.bpm !== null);
+  if (!withData.length) { $('val-hr').textContent = '–'; return; }
+
+  const today = data[data.length - 1];
+  $('val-hr').textContent = today?.bpm ?? withData[withData.length - 1].bpm;
 
   charts.hr = new Chart($('chart-hr'), {
-    type: 'line',
+    type: 'bar',
     data: {
-      labels: data.map(d => d.hour),
+      labels: data.map(d => d.label),
       datasets: [{
         data: data.map(d => d.bpm),
-        borderColor: '#ff5c7a',
-        backgroundColor: 'rgba(255,92,122,0.1)',
-        fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#ff5c7a',
+        backgroundColor: data.map((d, i) => {
+          if (d.bpm === null) return 'transparent';
+          return i === data.length - 1 ? '#ff5c7a' : 'rgba(255,92,122,0.35)';
+        }),
+        borderRadius: 6, borderSkipped: false,
       }],
     },
     options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
@@ -400,7 +391,7 @@ async function loadData() {
     renderSteps(steps);
     renderSleep(sleep);
     renderRuns(runs);
-    await loadHR();
+    await loadHR();  // separate because it uses a different time range
     $('val-cals').textContent = fmt(calories);
     $('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   } catch (e) {
@@ -431,8 +422,6 @@ $('btn-login-big').addEventListener('click', async () => {
 $('btn-refresh').addEventListener('click', loadData);
 $('btn-logout').addEventListener('click', () => { clearTokens(); showLogin(); });
 
-$('btn-hr-prev').addEventListener('click', () => { if (hrDayOffset < 6) { hrDayOffset++; loadHR(); } });
-$('btn-hr-next').addEventListener('click', () => { if (hrDayOffset > 0) { hrDayOffset--; loadHR(); } });
 
 loadTokens();
 tokens?.access_token ? (showDashboard(), loadData()) : showLogin();
