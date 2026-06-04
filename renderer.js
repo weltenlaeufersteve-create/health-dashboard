@@ -5,22 +5,28 @@ const urlMod = require('url');
 const fs     = require('fs');
 const path   = require('path');
 const os     = require('os');
+const Anthropic = require('@anthropic-ai/sdk');
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 // Credentials are read from .env (gitignored) at runtime.
-// .env format: line 1 = CLIENT_ID, line 2 = CLIENT_SECRET
+// .env format: line 1 = CLIENT_ID, line 2 = CLIENT_SECRET, line 3 = ANTHROPIC_API_KEY
 function loadEnv() {
   try {
     const lines = fs.readFileSync(path.join(__dirname, '.env'), 'utf8')
       .split('\n').map(l => l.trim()).filter(Boolean);
-    return { CLIENT_ID: lines[0] || '', CLIENT_SECRET: lines[1] || '' };
-  } catch { return { CLIENT_ID: '', CLIENT_SECRET: '' }; }
+    return {
+      CLIENT_ID: lines[0] || '',
+      CLIENT_SECRET: lines[1] || '',
+      ANTHROPIC_API_KEY: lines[2] || ''
+    };
+  } catch { return { CLIENT_ID: '', CLIENT_SECRET: '', ANTHROPIC_API_KEY: '' }; }
 }
 const env = loadEnv();
 
 const CONFIG = {
   CLIENT_ID:     env.CLIENT_ID,
   CLIENT_SECRET: env.CLIENT_SECRET,
+  ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
   REDIRECT_PORT: 9876,
   REDIRECT_URI:  'http://localhost:9876/oauth',
   SCOPES: [
@@ -238,6 +244,83 @@ async function fetchRuns() {
   })).reverse();
 }
 
+// ─── AI INSIGHTS (CLAUDE) ─────────────────────────────────────────────────────
+function summarizeHealthData(steps, calories, sleep, hr) {
+  const stepsArray = steps.map(d => d.steps);
+  const sleepArray = sleep.map(d => d.hours);
+  const hrArray = hr.map(d => d.avg).filter(v => v !== null);
+
+  return {
+    period: 'last 7 days',
+    steps: {
+      daily: stepsArray,
+      total: stepsArray.reduce((a, b) => a + b, 0),
+      avg: Math.round(stepsArray.reduce((a, b) => a + b, 0) / stepsArray.length),
+      max: Math.max(...stepsArray),
+      min: Math.min(...stepsArray),
+    },
+    sleep: {
+      daily: sleepArray,
+      total: parseFloat(sleepArray.reduce((a, b) => a + b, 0).toFixed(1)),
+      avg: parseFloat((sleepArray.reduce((a, b) => a + b, 0) / sleepArray.length).toFixed(1)),
+    },
+    heartRate: {
+      daily: hrArray,
+      avg: hrArray.length > 0 ? Math.round(hrArray.reduce((a, b) => a + b, 0) / hrArray.length) : null,
+      max: hrArray.length > 0 ? Math.max(...hrArray) : null,
+      min: hrArray.length > 0 ? Math.min(...hrArray) : null,
+    },
+    calories: calories,
+  };
+}
+
+async function fetchAIInsights(summary) {
+  if (!CONFIG.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
+
+  const client = new Anthropic({ apiKey: CONFIG.ANTHROPIC_API_KEY });
+
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1000,
+    system: `You are a supportive health coach. Analyze the user's 7-day health metrics and provide:
+1. A brief weekly overview (1-2 sentences) of their activity, sleep, and vitals trends
+2. Any notable patterns or anomalies you observe
+3. 2-3 concrete, actionable suggestions to improve their health
+
+Keep your tone encouraging and practical. Focus on patterns rather than single data points.`,
+    messages: [
+      {
+        role: 'user',
+        content: `Here's my health data from the last 7 days: ${JSON.stringify(summary)}`,
+      },
+    ],
+  });
+
+  return message.content[0].type === 'text' ? message.content[0].text : '';
+}
+
+function renderInsights(text) {
+  const card = $('insights-card');
+  const content = $('insights-text');
+  if (!card || !content) return;
+
+  content.textContent = text;
+  card.classList.remove('hidden');
+}
+
+async function loadInsights(steps, calories, sleep, hr) {
+  try {
+    $('insights-loading').classList.remove('hidden');
+    const summary = summarizeHealthData(steps, calories, sleep, hr);
+    const insights = await fetchAIInsights(summary);
+    renderInsights(insights);
+  } catch (e) {
+    showError('Error loading insights: ' + e.message);
+  } finally {
+    $('insights-loading').classList.add('hidden');
+  }
+}
+
 // ─── UI HELPERS ───────────────────────────────────────────────────────────────
 const $      = id => document.getElementById(id);
 const charts = {};
@@ -319,8 +402,6 @@ function renderHeartRate(data) {
   const today = data[data.length - 1];
   $('val-hr').textContent = today?.avg ?? withData[withData.length - 1].avg;
 
-  const isToday = (_, i) => i === data.length - 1;
-
   charts.hr = new Chart($('chart-hr'), {
     type: 'bar',
     data: {
@@ -329,8 +410,8 @@ function renderHeartRate(data) {
         {
           // range bar: min → max
           data: data.map(d => d.avg !== null ? [d.min, d.max] : null),
-          backgroundColor: data.map((_, i) => isToday(_, i) ? 'rgba(255,92,122,0.45)' : 'rgba(255,92,122,0.2)'),
-          borderColor:     data.map((_, i) => isToday(_, i) ? '#ff5c7a' : 'rgba(255,92,122,0.5)'),
+          backgroundColor: 'rgba(255,92,122,0.2)',
+          borderColor: 'rgba(255,92,122,0.5)',
           borderWidth: 1,
           borderRadius: 4,
           borderSkipped: false,
@@ -338,7 +419,7 @@ function renderHeartRate(data) {
         {
           // average marker: thin white line inside the bar
           data: data.map(d => d.avg !== null ? [d.avg - 1, d.avg + 1] : null),
-          backgroundColor: data.map((_, i) => isToday(_, i) ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.55)'),
+          backgroundColor: 'rgba(255,255,255,0.55)',
           borderWidth: 0,
           borderRadius: 2,
           borderSkipped: false,
@@ -413,21 +494,26 @@ function showError(msg) {
   setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
+let lastData = { steps: null, calories: null, sleep: null, hr: null };
+
 async function loadData() {
   setLoading(true);
   try {
-    const [steps, calories, sleep, runs] = await Promise.all([
+    const [steps, calories, sleep, runs, hr] = await Promise.all([
       fetchSteps7Days(),
       fetchCaloriesToday(),
       fetchSleep7Days(),
       fetchRuns(),
+      fetchHeartRate7Days(),
     ]);
+    lastData = { steps, calories, sleep, hr };
     renderSteps(steps);
     renderSleep(sleep);
+    renderHeartRate(hr);
     renderRuns(runs);
-    await loadHR();  // separate because it uses a different time range
     $('val-cals').textContent = fmt(calories);
     $('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    await loadInsights(steps, calories, sleep, hr);
   } catch (e) {
     showError('Error loading data: ' + e.message);
   } finally {
@@ -455,7 +541,11 @@ $('btn-login-big').addEventListener('click', async () => {
 
 $('btn-refresh').addEventListener('click', loadData);
 $('btn-logout').addEventListener('click', () => { clearTokens(); showLogin(); });
-
+$('btn-insights').addEventListener('click', () => {
+  if (lastData.steps && lastData.calories !== null && lastData.sleep && lastData.hr) {
+    loadInsights(lastData.steps, lastData.calories, lastData.sleep, lastData.hr);
+  }
+});
 
 loadTokens();
 tokens?.access_token ? (showDashboard(), loadData()) : showLogin();

@@ -97,6 +97,31 @@ Refresh passiert automatisch in `getValidToken()` wenn Token < 60s vor Ablauf.
 - `fitness.heart_rate.read` – Herzfrequenz
 - `fitness.body.read` – Körperdaten
 
+## Anthropic API
+
+### Konfiguration
+
+1. API-Key von [console.anthropic.com](https://console.anthropic.com/keys) kopieren
+2. In `.env` Zeile 3 eintragen: `sk-ant-v1-...`
+
+### .env Format
+
+```
+CLIENT_ID
+CLIENT_SECRET
+ANTHROPIC_API_KEY
+```
+
+### KI-Insights Feature
+
+- Nutzt **Claude Sonnet 4.6** mit `max_tokens: 1000`
+- Health-Coaching Ton
+- Analysiert 7-Tage-Metriken und generiert:
+  - Wochenübersicht (Aktivität, Schlaf, Vitals)
+  - Bemerkenswerte Muster oder Anomalien
+  - 2-3 konkrete, umsetzbare Vorschläge
+- Daten werden kompakt zusammengefasst, bevor sie an die API gesendet werden (nur Statistiken, keine Rohdaten)
+
 ## Aktueller Funktionsumfang
 
 | Feature | Status | Datenquelle |
@@ -106,10 +131,10 @@ Refresh passiert automatisch in `getValidToken()` wenn Token < 60s vor Ablauf.
 | Kalorien heute | ✅ | Fit aggregate API |
 | Schlaf letzte Nacht | ✅ | Fit sessions (activityType=72) |
 | Schlaf 7 Nächte (Balkendiagramm) | ✅ | Fit sessions |
-| Herzfrequenz heute stündlich (Liniendiagramm) | ✅ | Fit aggregate API |
+| Herzfrequenz 7 Tage (Bereichs-Balkendiagramm) | ✅ | Fit aggregate API |
 | Laufaktivitäten 30 Tage (Liste) | ✅ | Fit sessions (activityType=8) |
+| KI-Wocheninsights | ✅ | Claude API (Sonnet 4.6) |
 | Pace / Distanz pro Lauf | ❌ | Dataset-API (`com.google.distance.delta`) |
-| Wochenstatistiken | ❌ | – |
 
 ## Design
 

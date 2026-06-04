@@ -337,6 +337,18 @@
       <div id="runs-list"></div>
     </div>
   </div>
+
+  <div id="insights-card" class="chart-card" style="margin: 0 20px 20px 20px;">
+    <div class="chart-header">
+      <h3>Weekly insights</h3>
+      <button id="btn-insights" class="app-btn" style="color: var(--accent);">↻ Refresh</button>
+    </div>
+    <div id="insights-loading" class="hidden" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; color: var(--muted);">
+      <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
+      <span style="font-size: 12px;">Loading insights…</span>
+    </div>
+    <div id="insights-text" style="font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre-wrap; word-wrap: break-word; padding: 16px 0;"></div>
+  </div>
 </div>
 
 <!-- LOADING OVERLAY -->
