@@ -217,10 +217,12 @@ async function fetchHeartRate7Days() {
     endTimeMillis:   Date.now(),
   });
   return (resp.bucket || []).map(b => {
-    const val = b.dataset?.[0]?.point?.[0]?.value?.[0]?.fpVal;
+    const v = b.dataset?.[0]?.point?.[0]?.value;
     return {
       label: new Date(parseInt(b.startTimeMillis)).toLocaleDateString('de-DE', { weekday: 'short' }),
-      bpm:   val ? Math.round(val) : null,
+      avg:   v?.[0]?.fpVal ? Math.round(v[0].fpVal) : null,
+      max:   v?.[1]?.fpVal ? Math.round(v[1].fpVal) : null,
+      min:   v?.[2]?.fpVal ? Math.round(v[2].fpVal) : null,
     };
   });
 }
@@ -311,27 +313,59 @@ async function loadHR() {
 
 function renderHeartRate(data) {
   destroyChart('hr');
-  const withData = data.filter(d => d.bpm !== null);
+  const withData = data.filter(d => d.avg !== null);
   if (!withData.length) { $('val-hr').textContent = '–'; return; }
 
   const today = data[data.length - 1];
-  $('val-hr').textContent = today?.bpm ?? withData[withData.length - 1].bpm;
+  $('val-hr').textContent = today?.avg ?? withData[withData.length - 1].avg;
+
+  const isToday = (_, i) => i === data.length - 1;
 
   charts.hr = new Chart($('chart-hr'), {
     type: 'bar',
     data: {
       labels: data.map(d => d.label),
-      datasets: [{
-        data: data.map(d => d.bpm),
-        backgroundColor: data.map((d, i) => {
-          if (d.bpm === null) return 'transparent';
-          return i === data.length - 1 ? '#ff5c7a' : 'rgba(255,92,122,0.35)';
-        }),
-        borderRadius: 6, borderSkipped: false,
-      }],
+      datasets: [
+        {
+          // range bar: min → max
+          data: data.map(d => d.avg !== null ? [d.min, d.max] : null),
+          backgroundColor: data.map((_, i) => isToday(_, i) ? 'rgba(255,92,122,0.45)' : 'rgba(255,92,122,0.2)'),
+          borderColor:     data.map((_, i) => isToday(_, i) ? '#ff5c7a' : 'rgba(255,92,122,0.5)'),
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          // average marker: thin white line inside the bar
+          data: data.map(d => d.avg !== null ? [d.avg - 1, d.avg + 1] : null),
+          backgroundColor: data.map((_, i) => isToday(_, i) ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.55)'),
+          borderWidth: 0,
+          borderRadius: 2,
+          borderSkipped: false,
+        },
+      ],
     },
-    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
-      y: { ...BASE_OPTS.scales.y, ticks: { ...BASE_OPTS.scales.y.ticks, callback: v => v + ' bpm' } } } },
+    options: {
+      ...BASE_OPTS,
+      grouped: false,
+      scales: { ...BASE_OPTS.scales,
+        y: { ...BASE_OPTS.scales.y,
+          ticks: { ...BASE_OPTS.scales.y.ticks, callback: v => v + ' bpm' } } },
+      plugins: {
+        ...BASE_OPTS.plugins,
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = data[ctx.dataIndex];
+              if (!d.avg) return '';
+              return ctx.datasetIndex === 0
+                ? `Min ${d.min} – Max ${d.max} bpm`
+                : `Avg ${d.avg} bpm`;
+            },
+          },
+        },
+      },
+    },
   });
 }
 
